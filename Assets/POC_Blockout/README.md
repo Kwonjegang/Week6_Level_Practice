@@ -2,23 +2,29 @@
 
 Scene: `Assets/Scenes/POC_Level_Blockout.unity`  
 Generator: `Assets/Editor/POCLevelBuilder.cs`  
-Unity version: `6000.0.55f1`
+Play controls: `Assets/POC_Blockout/POCPlaytestController.cs`
 
-This is a spatial blockout of the approved 00–09 layout. It keeps the supplied room order and marks the intended wall gates, child-only crawl routes, A/B automatic-jump pads, ability pickups, toxic open gap, alternating platforms, switches, red ability alcove, required W1 wall, optional W2/photo branch, and rejoin/exit spaces.
+This is a playable 3D blockout of the supplied 00–09 layout. The route follows the reference room graph: 00–01 begin in the lower-left, 02–05 turn into the upper wing, and the route turns back down into 06–09. The 08 family-photo discovery remains a short optional branch below 06. Scene geometry has no floating text labels.
 
-## How to view
+## Play mode controls
 
-Open `POC_Level_Blockout.unity`. The orthographic overview camera frames the whole layout so the route and blockout geometry are easy to inspect.
+- **WASD / arrow keys / gamepad left stick:** move relative to the camera.
+- **Space / gamepad south button:** jump. The robot has a regular safe jump; the girl's jump is a very low hop.
+- **Hold right mouse button and move mouse:** orbit the follow camera. It eases behind the active character.
+- **Tab / gamepad right shoulder:** switch the controlled character while they are apart.
+- **E / gamepad east button (B):** mount or dismount. Mounting switches control to the robot; dismounting switches to the girl. Dismount is blocked on the toxic bridge.
+- **F / gamepad west button (X):** the girl opens G1 or H3 near its switch; the robot travels automatically from an A pad to its paired B pad.
 
-To regenerate the scene from the Editor script, use **Tools → POC → Build Week 6 Level Graybox**.
+The inactive character waits in place. The first play-mode focus is the robot. The two graybox characters use CharacterController capsules sized to their visible robot and girl proxies.
 
-## Scope and assumptions
+## Layout and implementation notes
 
-- The map is authored in 3D on the XZ plane; required progression travels along +X.
-- 1 Unity unit is provisionally treated as about 1 meter. The project has no character movement or collision metrics yet, so dimensions and jump distances are blockout estimates.
-- Floors, walls, gates, and support pillars use simple primitive geometry. The included scene has no player controller, character switching, automatic jump, barrier, switch/gate logic, destructible-wall behavior, or gameplay UI. Colored props and labels mark intended interactions for layout review.
-- In 05, four separate slabs alternate right/left relative to forward travel and each is supported by a narrow rusted pillar. No walkable side bypass is provided.
-- 02's low duct bypasses G1 for the child and reaches the B-side waiting nook. 06's short crawl route reaches SW3 and returns to the main room; H3 protects the red ability item in a side alcove.
-- The existing sample scene is retained; the graybox is a separate scene and is added to the build scene list.
+- 00 is the quiet movement and safe-jump start; 01 teaches the robot's guaranteed A-to-B jump.
+- 02 combines G1's child-only low route and the robot's A-to-B jump, so they split briefly and meet at B. The low roof is high enough for the smaller girl and blocks the robot; a separate crouch action is not required for this control pass.
+- 03 repeats the robot jump at a wider, raised landing.
+- 05 is a large toxic opening with four isolated, corroded platforms alternating right-left-right-left, supported by narrow pillars. The pair stays mounted there.
+- In 06, the girl uses SW3 to open H3 and reveal the red cube. W1 remains as a visible exit block because destruction controls are outside this pass.
 
-Before replacing the placeholders with the real movement system, validate the room dimensions, duct clearance, ordinary jump range, and camera behavior against the actual character controller.
+The prototype currently implements only movement, jumping, character focus, mount/dismount, robot A-to-B travel, and the two child-operated gates. It does not implement ability pickup/switching, barrier protection, wall destruction, follow behavior, animations, or interaction UI. Dimensions remain provisional at about 1 Unity unit per meter and need tuning against final character assets.
+
+To regenerate the scene from Unity, use **Tools → POC → Build Week 6 Level Graybox**.

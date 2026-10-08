@@ -4,8 +4,8 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Builds a readable, non-interactive Unity graybox for the approved Week 6 level layout.
-/// Geometry is authored along +X; the camera shows the full route from a high rear angle.
+/// Builds the 3D graybox and minimal playtest controls for the approved Week 6 layout.
+/// Geometry follows the supplied bent room graph; play mode uses a third-person follow camera.
 /// </summary>
 public static class POCLevelBuilder
 {
@@ -14,8 +14,10 @@ public static class POCLevelBuilder
     private const string ScenePath = "Assets/Scenes/POC_Level_Blockout.unity";
 
     private static Transform root;
-    private static Camera overviewCamera;
-    private static Font labelFont;
+    private static Transform sceneRoot;
+    private static Camera gameplayCamera;
+    private static Transform girlCharacter;
+    private static Transform robotCharacter;
 
     private static Material concrete;
     private static Material floor;
@@ -57,20 +59,30 @@ public static class POCLevelBuilder
 
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         GameObject levelRoot = new GameObject("POC_LEVEL_ROOT - 00 to 09");
-        root = levelRoot.transform;
-        labelFont = LoadLabelFont();
-        overviewCamera = CreateOverviewCamera();
+        sceneRoot = levelRoot.transform;
+        root = sceneRoot;
 
+        // Keep the supplied room graph: the route turns north into 02-05, then south into 06-09.
+        BuildSection("00 - start", Build00, Vector3.zero);
+        BuildSection("01 - jump lesson", Build01, Vector3.zero);
+        BuildSection("02-03 - split and reunite", Build02And03, new Vector3(0f, 0f, 12f));
+        BuildSection("04 - barrier setup", Build04, new Vector3(0f, 0f, 12f));
+        BuildSection("05 - toxic bridge", Build05, new Vector3(0f, 0f, 12f));
+        BuildSection("06-08 - red lock and discovery", Build06And08, new Vector3(4f, 0f, 0f));
+        BuildSection("07-09 - reunion and exit", Build07And09, new Vector3(4f, 0f, 0f));
+
+        // Two short, walled turns make the intended route visible in 3D instead of a straight hallway.
+        root = sceneRoot;
+        BuildNorthTurnConnector();
+        BuildSouthTurnConnector();
         CreateLighting();
-        Build00();
-        Build01();
-        Build02And03();
-        Build04();
-        Build05();
-        Build06And08();
-        Build07And09();
         BuildWorldBase();
-        AddNorthAndScaleLegend();
+
+        gameplayCamera = CreateGameplayCamera();
+        GameObject playtest = new GameObject("POC Playtest Controller");
+        playtest.transform.SetParent(sceneRoot, false);
+        POCPlaytestController controller = playtest.AddComponent<POCPlaytestController>();
+        controller.Configure(girlCharacter, robotCharacter, gameplayCamera);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, ScenePath);
@@ -78,35 +90,37 @@ public static class POCLevelBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        Debug.Log("POC graybox saved to " + ScenePath + ". This scene is spatial layout only; runtime player abilities are not implemented.");
+        Debug.Log("POC graybox saved to " + ScenePath + ". Third-person movement, character switching, A-to-B robot jumps, and child-operated gates are enabled.");
     }
 
     private static void Build00()
     {
         BuildRoomShell("00 START - quiet intro", 0f, 8f, -4f, 4f, 2.4f, 2.4f, false);
-        Box("00 floor before small hop", new Vector3(1.9f, -0.25f, 0f), new Vector3(3.8f, 0.5f, 8f), floor);
-        Box("00 floor after small hop", new Vector3(6.2f, -0.25f, 0f), new Vector3(3.6f, 0.5f, 8f), floor);
-        Box("00 small movement gap pit", new Vector3(4.1f, -1.2f, 0f), new Vector3(0.6f, 1.6f, 8f), dark, false);
+        Box("00 floor before small hop", new Vector3(1.7f, -0.25f, 0f), new Vector3(3.4f, 0.5f, 8f), floor);
+        Box("00 floor after small hop", new Vector3(6.25f, -0.25f, 0f), new Vector3(3.5f, 0.5f, 8f), floor);
+        Box("00 shallow jump gap shadow", new Vector3(3.95f, -0.32f, 0f), new Vector3(1.1f, 0.12f, 8f), dark, false);
+        Box("00 safe catch floor below gap", new Vector3(3.95f, -0.9f, 0f), new Vector3(1.8f, 0.2f, 8f), concrete);
         Box("00 rubble left", new Vector3(1.2f, 0.3f, 2.4f), new Vector3(1.2f, 0.6f, 1.3f), concrete);
         Box("00 collapsed beam", new Vector3(6.2f, 0.6f, -2.5f), new Vector3(2.1f, 0.45f, 0.45f), rust).transform.rotation = Quaternion.Euler(0f, 0f, 11f);
-        Marker("Girl - dormant intro", new Vector3(1.4f, 0.55f, -1.0f), 0.45f, blueLight);
-        RobotPlaceholder("Robot - awakening intro", new Vector3(2.7f, 1.0f, 0.3f));
+        girlCharacter = GirlPlaceholder("Girl - height 1.1m", new Vector3(1.4f, 0f, -1.0f));
+        robotCharacter = RobotPlaceholder("Robot - height 2.0m", new Vector3(2.7f, 0f, 0.3f));
         Box("00 exit door frame left", new Vector3(7.94f, 1.45f, -1.55f), new Vector3(0.28f, 2.9f, 1.2f), steel);
         Box("00 exit door frame right", new Vector3(7.94f, 1.45f, 1.55f), new Vector3(0.28f, 2.9f, 1.2f), steel);
         Label("00  도입 · 조용한 시작", new Vector3(3.7f, 3.5f, 0f), white, 0.25f);
         Label("활성화 → 어부바 → 백뷰", new Vector3(3.9f, 2.8f, 0f), blue, 0.18f);
         Label("걷기 / 카메라 회전 / 짧은 점프", new Vector3(3.7f, 2.55f, 2.7f), blue, 0.16f);
-        Label("작은 틈 · 낙하 없는 조작 연습", new Vector3(4.0f, 1.2f, -0.15f), white, 0.15f);
+        Label("낮은 안전 점프 · 실패해도 재도전 가능", new Vector3(4.0f, 4.0f, -0.15f), white, 0.17f);
     }
 
     private static void Build01()
     {
         BuildRoomShell("01 BLUE - jump tutorial", 8f, 20f, -5f, 5f, 2.4f, 2.4f, false);
-        Box("01 west landing", new Vector3(10.35f, -0.25f, 0f), new Vector3(4.7f, 0.5f, 10f), floor);
-        Box("01 east landing", new Vector3(17.65f, -0.25f, 0f), new Vector3(4.7f, 0.5f, 10f), floor);
-        Box("01 enlarged jump pit", new Vector3(14f, -2.4f, 0f), new Vector3(4.6f, 4.4f, 10f), dark, false);
-        AddJumpPad("01 A - F/X auto jump", new Vector3(11.35f, 0.12f, 0f), "A", blue);
-        AddJumpPad("01 B - auto landing", new Vector3(16.65f, 0.12f, 0f), "B", blue);
+        // The landing decks end at the pit edges; an 8.4 m A-to-B gap makes the interaction jump read clearly.
+        Box("01 west landing", new Vector3(9.8f, -0.25f, 0f), new Vector3(3.6f, 0.5f, 10f), floor);
+        Box("01 east landing", new Vector3(18.2f, -0.25f, 0f), new Vector3(3.6f, 0.5f, 10f), floor);
+        Box("01 enlarged jump pit", new Vector3(14f, -2.4f, 0f), new Vector3(4.8f, 4.4f, 10f), dark, false);
+        AddJumpPad("01 A - F/X auto jump", new Vector3(9.8f, 0.12f, 0f), "A", blue);
+        AddJumpPad("01 B - auto landing", new Vector3(18.2f, 0.12f, 0f), "B", blue);
         Pickup("01 blue ability pickup", new Vector3(9.3f, 0.7f, 2.5f), blue, "파랑 능력 · 접촉 획득");
         Label("01  파랑 점프 학습", new Vector3(14f, 3.5f, 3.7f), white, 0.25f);
         Label("넓은 단일 개구부 · 옆 우회 불가", new Vector3(14f, 2.85f, 3.7f), blue, 0.16f);
@@ -124,21 +138,28 @@ public static class POCLevelBuilder
         Gate("G1 - closed main route gate", new Vector3(23.5f, 1.45f, 0f), new Vector3(0.34f, 2.9f, 11f), yellow);
         Box("02 crawl duct floor", new Vector3(29.1f, -0.08f, -6.4f), new Vector3(15.6f, 0.22f, 1.5f), purple);
         Box("02 crawl duct south wall", new Vector3(29.1f, 0.55f, -7.2f), new Vector3(15.6f, 1.1f, 0.18f), blueLight);
-        Box("02 crawl duct low roof", new Vector3(29.1f, 1.03f, -6.4f), new Vector3(15.6f, 0.18f, 1.7f), steel);
+        Box("02 crawl duct low roof", new Vector3(29.1f, 1.34f, -6.4f), new Vector3(15.6f, 0.18f, 1.7f), steel);
         Switch("SW1 - child opens G1", new Vector3(25.1f, 0.42f, -6.4f), "SW1", blueLight);
         Label("아이 전용 저상 덕트", new Vector3(29f, 1.9f, -6.4f), purple, 0.17f);
         Label("G1 개방 후 B측 대기", new Vector3(35.5f, 1.85f, -6.4f), purple, 0.14f);
 
-        AddJumpPad("02 A - robot start", new Vector3(29.25f, 0.12f, 0f), "A", blue);
-        AddJumpPad("02 B - robot reunion", new Vector3(35.45f, 0.12f, 0f), "B", blue);
+        // Offset the pads across the room so the automatic transfer spans about 7.8 m diagonally.
+        AddJumpPad("02 A - robot start", new Vector3(29.25f, 0.12f, -2.4f), "A", blue);
+        AddJumpPad("02 B - robot reunion", new Vector3(35.45f, 0.12f, 2.4f), "B", blue);
         Label("02  잠금 구역", new Vector3(28.5f, 3.5f, 4.1f), white, 0.25f);
         Label("아이: SW1 → 저상 덕트 → B측", new Vector3(28.4f, 2.85f, 4.1f), purple, 0.15f);
         Label("로봇: G1 통과 → A에서 F/X → B", new Vector3(28.5f, 2.55f, 4.1f), blue, 0.15f);
 
-        BuildRoomShell("03 reunion - ability application", 38f, 44f, -5.5f, 5.5f, 2.4f, 2.4f, true);
-        Label("03  재합류 · 적용 확인", new Vector3(41f, 3.3f, 0f), white, 0.2f);
-        Label("아이와 로봇이 다시 함께 이동", new Vector3(41f, 2.7f, 0f), blue, 0.15f);
-        Marker("03 reunion marker", new Vector3(41f, 0.55f, 0f), 0.6f, blue);
+        BuildRoomShell("03 jump application", 38f, 44f, -5.5f, 5.5f, 2.4f, 2.4f, false);
+        Box("03 west launch deck", new Vector3(39.2f, -0.25f, 0f), new Vector3(2.4f, 0.5f, 11f), floor);
+        Box("03 elevated east landing", new Vector3(42.9f, 0.2f, 0f), new Vector3(2.2f, 0.5f, 11f), concrete);
+        Box("03 open jump shaft", new Vector3(41.05f, -1.7f, 0f), new Vector3(1.5f, 3f, 10.8f), dark, false);
+        AddJumpPad("03 A - application launch", new Vector3(39.2f, 0.12f, 0f), "A", blue);
+        AddJumpPad("03 B - elevated landing", new Vector3(42.9f, 0.57f, 0f), "B", blue);
+        Label("03  점프 적용 · 높이가 달라진 착지", new Vector3(41f, 4.1f, 4.0f), white, 0.22f);
+        Label("A에서 F/X → 벽으로 우회하지 않고 B에 자동 착지", new Vector3(41f, 3.55f, 4.0f), blue, 0.15f);
+        Label("점프 후 로봇과 아이가 다시 합류", new Vector3(41f, 3.15f, 4.0f), blue, 0.15f);
+        Marker("03 reunion marker", new Vector3(43.45f, 0.75f, -3.7f), 0.6f, blue);
     }
 
     private static void Build04()
@@ -159,37 +180,41 @@ public static class POCLevelBuilder
         Box("05 west safe landing", new Vector3(51.6f, -0.25f, 0f), new Vector3(1.2f, 0.5f, 11f), floor);
         Box("05 east safe landing", new Vector3(63.4f, -0.25f, 0f), new Vector3(1.2f, 0.5f, 11f), floor);
         Box("05 toxic basin", new Vector3(57.5f, -3.6f, 0f), new Vector3(11.4f, 0.15f, 10.5f), green, false);
-        Box("05 dark open drop", new Vector3(57.5f, -1.6f, 0f), new Vector3(11.5f, 3f, 10.7f), dark, false);
-        // Alternating slabs are right/left relative to travel along +X: near/far in this plan view.
+        // Facing +X, the character's right side is -Z in Unity coordinates.
         float[] xs = { 53.0f, 55.7f, 58.4f, 61.1f };
-        float[] zs = { 2.0f, -2.0f, 2.0f, -2.0f };
+        float[] zs = { -1.2f, 1.2f, -1.2f, 1.2f };
         string[] sides = { "RIGHT", "LEFT", "RIGHT", "LEFT" };
         for (int i = 0; i < xs.Length; i++)
         {
             float x = xs[i];
             float z = zs[i];
-            Box("05 isolated corroded slab " + (i + 1) + " - " + sides[i], new Vector3(x, 0.05f, z), new Vector3(2.25f, 0.3f, 2.45f), steel);
+            Box("05 isolated corroded slab " + (i + 1) + " - " + sides[i], new Vector3(x, 0.05f, z), new Vector3(2.25f, 0.3f, 1.8f), steel);
             Cylinder("05 narrow rusted support pillar " + (i + 1), new Vector3(x, -1.18f, z), new Vector3(0.26f, 2.2f, 0.26f), rust);
             Box("05 unstable slab footing " + (i + 1), new Vector3(x, -2.32f, z), new Vector3(0.9f, 0.16f, 0.9f), concrete, false);
             Label((i + 1) + "  " + sides[i], new Vector3(x, 0.9f, z), white, 0.13f);
         }
+        // Build an open-top toxic shaft. A solid cube here would hide the hazard surface and supports.
+        Box("05 shaft west face", new Vector3(51.95f, -1.75f, 0f), new Vector3(0.2f, 3.3f, 10.7f), dark);
+        Box("05 shaft east face", new Vector3(63.05f, -1.75f, 0f), new Vector3(0.2f, 3.3f, 10.7f), dark);
+        Box("05 shaft north face", new Vector3(57.5f, -1.75f, 5.25f), new Vector3(11.3f, 3.3f, 0.2f), dark);
+        Box("05 shaft south face", new Vector3(57.5f, -1.75f, -5.25f), new Vector3(11.3f, 3.3f, 0.2f), dark);
         // Rusted outer rim walls make the pit read as an unavoidable open chasm.
         Box("05 rust rim north", new Vector3(57.5f, 1.45f, 5.42f), new Vector3(11.5f, 2.9f, 0.2f), rust);
         Box("05 rust rim south", new Vector3(57.5f, 1.45f, -5.42f), new Vector3(11.5f, 2.9f, 0.2f), rust);
-        Label("05  독성 낙하 구역", new Vector3(57.5f, 3.45f, 4.3f), white, 0.24f);
-        Label("큰 개구부 · 진행: 오른쪽 → 왼쪽 → 오른쪽 → 왼쪽", new Vector3(57.5f, 2.8f, 4.3f), yellow, 0.13f);
-        Label("베리어 유지 · 독성 중 아이 하차 불가", new Vector3(57.5f, 2.52f, 4.3f), white, 0.13f);
-        Label("발판 아래 가는 부식 기둥으로 불안정성 표시", new Vector3(57.5f, -0.1f, -4.2f), greenLight, 0.13f);
+        Label("05  독성 낙하 구역", new Vector3(57.5f, 4.1f, 4.3f), white, 0.24f);
+        Label("큰 개구부 · 캐릭터 기준 우 → 좌 → 우 → 좌", new Vector3(57.5f, 3.55f, 4.3f), yellow, 0.15f);
+        Label("베리어 상시 유지 · 독성 중 아이 하차 불가", new Vector3(57.5f, 3.15f, 4.3f), white, 0.15f);
+        Label("녹색 면은 독성 웅덩이 · 발판은 부식 기둥으로 지지", new Vector3(57.5f, 2.75f, 4.3f), greenLight, 0.14f);
     }
 
     private static void Build06And08()
     {
-        BuildRoomShell("06 red ability lock room", 64f, 77f, -6f, 6f, 2.4f, 2.4f, false, new[] { 66.2f }, new[] { 72.1f }, 1.5f, 3.5f);
+        BuildRoomShell("06 red ability lock room", 64f, 77f, -6f, 6f, 2.4f, 2.4f, false, new[] { 66.2f, 72.3f }, new[] { 72.1f }, 1.5f, 3.5f);
         Box("06 main route floor", new Vector3(70.5f, -0.25f, 0f), new Vector3(13f, 0.5f, 12f), floor);
         // A low side duct gives the child a brief solo task and returns to the robot immediately.
         Box("06 crawl route floor", new Vector3(67.5f, -0.08f, -7.0f), new Vector3(3.5f, 0.22f, 1.5f), purple);
         Box("06 crawl route south wall", new Vector3(67.5f, 0.55f, -7.8f), new Vector3(3.5f, 1.1f, 0.18f), blueLight);
-        Box("06 crawl route low roof", new Vector3(67.5f, 1.03f, -7.0f), new Vector3(3.5f, 0.18f, 1.7f), steel);
+        Box("06 crawl route low roof", new Vector3(67.5f, 1.34f, -7.0f), new Vector3(3.5f, 0.18f, 1.7f), steel);
         Switch("SW3 - child opens H3", new Vector3(68.6f, 0.42f, -7.0f), "SW3", blueLight);
         Label("아이 전용 · 짧은 왕복 덕트", new Vector3(69.4f, 1.9f, -7.0f), purple, 0.14f);
 
@@ -213,7 +238,9 @@ public static class POCLevelBuilder
 
         // Optional W2 branch with the single environmental family-photo discovery.
         Box("08 branch floor", new Vector3(72.3f, -0.23f, -12.1f), new Vector3(6.2f, 0.46f, 8.2f), floor);
-        Box("08 connector floor", new Vector3(72.3f, -0.23f, -8.8f), new Vector3(3.0f, 0.46f, 3.5f), floor);
+        Box("08 connector floor", new Vector3(72.3f, -0.23f, -8.35f), new Vector3(3.0f, 0.46f, 5.2f), floor);
+        Box("08 connector west wall", new Vector3(70.8f, 1.2f, -8.4f), new Vector3(0.2f, 2.4f, 5.0f), wall);
+        Box("08 connector east wall", new Vector3(73.8f, 1.2f, -8.4f), new Vector3(0.2f, 2.4f, 5.0f), wall);
         Box("08 branch side wall left", new Vector3(69.2f, 1.35f, -12.1f), new Vector3(0.25f, 2.7f, 8.2f), wall);
         Box("08 branch side wall right", new Vector3(75.4f, 1.35f, -12.1f), new Vector3(0.25f, 2.7f, 8.2f), wall);
         Box("08 branch end wall left", new Vector3(72.3f, 1.35f, -16.1f), new Vector3(6.2f, 2.7f, 0.25f), wall);
@@ -359,13 +386,77 @@ public static class POCLevelBuilder
         go.GetComponent<Renderer>().sharedMaterial = mat;
     }
 
-    private static void RobotPlaceholder(string name, Vector3 position)
+    private static Transform RobotPlaceholder(string name, Vector3 feetPosition)
     {
-        Box(name + " body", position, new Vector3(0.8f, 1.4f, 0.65f), steel);
-        Sphere(name + " head", position + Vector3.up * 0.95f, 0.42f, dark);
-        Box(name + " shoulder", position + new Vector3(0f, 0.5f, -0.35f), new Vector3(1.15f, 0.25f, 0.32f), rust);
+        GameObject actor = new GameObject(name);
+        actor.transform.SetParent(root, false);
+        actor.transform.position = feetPosition;
+        actor.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // Face the +X route.
+        CharacterController body = actor.AddComponent<CharacterController>();
+        body.height = 2.0f;
+        body.radius = 0.34f;
+        body.center = Vector3.up;
+        body.stepOffset = 0.28f;
+        body.slopeLimit = 45f;
+
+        ActorBox(actor.transform, name + " left leg", new Vector3(0f, 0.30f, -0.22f), new Vector3(0.28f, 0.60f, 0.28f), steel);
+        ActorBox(actor.transform, name + " right leg", new Vector3(0f, 0.30f, 0.22f), new Vector3(0.28f, 0.60f, 0.28f), steel);
+        ActorBox(actor.transform, name + " left foot", new Vector3(0f, 0.08f, 0.34f), new Vector3(0.32f, 0.16f, 0.48f), dark);
+        ActorBox(actor.transform, name + " right foot", new Vector3(0f, 0.08f, 0.34f), new Vector3(0.32f, 0.16f, 0.48f), dark);
+        ActorBox(actor.transform, name + " torso", new Vector3(0f, 0.98f, 0f), new Vector3(0.86f, 1.25f, 0.66f), steel);
+        ActorSphere(actor.transform, name + " head", new Vector3(0.02f, 1.78f, 0f), 0.48f, dark);
+        ActorBox(actor.transform, name + " left arm", new Vector3(0f, 0.98f, -0.54f), new Vector3(0.30f, 0.95f, 0.24f), concrete);
+        ActorBox(actor.transform, name + " right arm", new Vector3(0f, 0.98f, 0.54f), new Vector3(0.30f, 0.95f, 0.24f), concrete);
+        ActorBox(actor.transform, name + " chest light", new Vector3(0f, 1.06f, 0.44f), new Vector3(0.28f, 0.34f, 0.08f), blue);
+        return actor.transform;
     }
 
+    private static Transform GirlPlaceholder(string name, Vector3 feetPosition)
+    {
+        GameObject actor = new GameObject(name);
+        actor.transform.SetParent(root, false);
+        actor.transform.position = feetPosition;
+        actor.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // Face the same way as the robot.
+        CharacterController body = actor.AddComponent<CharacterController>();
+        body.height = 1.1f;
+        body.radius = 0.19f;
+        body.center = Vector3.up * 0.55f;
+        body.stepOffset = 0.12f;
+        body.slopeLimit = 45f;
+
+        ActorBox(actor.transform, name + " left leg", new Vector3(0f, 0.14f, -0.10f), new Vector3(0.16f, 0.28f, 0.15f), dark);
+        ActorBox(actor.transform, name + " right leg", new Vector3(0f, 0.14f, 0.10f), new Vector3(0.16f, 0.28f, 0.15f), dark);
+        ActorBox(actor.transform, name + " body", new Vector3(0f, 0.50f, 0f), new Vector3(0.40f, 0.50f, 0.32f), blueLight);
+        ActorSphere(actor.transform, name + " head", new Vector3(0f, 0.88f, 0f), 0.32f, yellowLight);
+        ActorSphere(actor.transform, name + " hair", new Vector3(-0.04f, 0.98f, -0.03f), 0.27f, purple);
+        ActorBox(actor.transform, name + " left arm", new Vector3(0f, 0.52f, -0.28f), new Vector3(0.14f, 0.40f, 0.12f), blueLight);
+        ActorBox(actor.transform, name + " right arm", new Vector3(0f, 0.52f, 0.28f), new Vector3(0.14f, 0.40f, 0.12f), blueLight);
+        return actor.transform;
+    }
+
+    private static GameObject ActorBox(Transform actor, string name, Vector3 localPosition, Vector3 size, Material material)
+    {
+        GameObject part = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        part.name = name;
+        part.transform.SetParent(actor, false);
+        part.transform.localPosition = localPosition;
+        part.transform.localScale = size;
+        part.GetComponent<Renderer>().sharedMaterial = material;
+        Object.DestroyImmediate(part.GetComponent<Collider>());
+        return part;
+    }
+
+    private static GameObject ActorSphere(Transform actor, string name, Vector3 localPosition, float diameter, Material material)
+    {
+        GameObject part = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        part.name = name;
+        part.transform.SetParent(actor, false);
+        part.transform.localPosition = localPosition;
+        part.transform.localScale = Vector3.one * diameter;
+        part.GetComponent<Renderer>().sharedMaterial = material;
+        Object.DestroyImmediate(part.GetComponent<Collider>());
+        return part;
+    }
     private static void Ring(string name, Vector3 position, float diameter, Material mat)
     {
         Cylinder(name, position + Vector3.up * 0.03f, new Vector3(diameter, 0.06f, diameter), mat);
@@ -390,23 +481,57 @@ public static class POCLevelBuilder
         Label("고정 차단 / 파괴벽", new Vector3(5.2f, 2.4f, 12.2f), red, 0.13f);
     }
 
-    private static Camera CreateOverviewCamera()
+    private static Camera CreateGameplayCamera()
     {
-        GameObject go = new GameObject("POC Overview Camera");
-        go.transform.SetParent(root, false);
-        go.transform.position = new Vector3(45.5f, 64f, -62f);
-        go.transform.LookAt(new Vector3(45.5f, 0f, 0f));
+        GameObject go = new GameObject("POC Third Person Camera");
+        go.transform.SetParent(sceneRoot, false);
         Camera cam = go.AddComponent<Camera>();
-        cam.orthographic = true;
-        cam.orthographicSize = 30f;
+        cam.orthographic = false;
+        cam.fieldOfView = 60f;
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = new Color(0.12f, 0.15f, 0.17f);
         cam.nearClipPlane = 0.1f;
         cam.farClipPlane = 180f;
         go.tag = "MainCamera";
+
+        Transform target = robotCharacter != null ? robotCharacter : girlCharacter;
+        if (target != null)
+        {
+            go.transform.position = target.position - target.forward * 3.4f + Vector3.up * 1.8f;
+            go.transform.LookAt(target.position + Vector3.up * 1.0f);
+        }
         return cam;
     }
 
+    private static void BuildSection(string name, System.Action build, Vector3 offset)
+    {
+        Transform previousRoot = root;
+        GameObject section = new GameObject(name);
+        section.transform.SetParent(sceneRoot, false);
+        root = section.transform;
+        build();
+        section.transform.localPosition = offset;
+        root = previousRoot;
+    }
+
+    private static void BuildNorthTurnConnector()
+    {
+        // 01 exits east; this narrow L-turn carries the player north into the raised 02-03 wing.
+        Box("01-02 connector floor", new Vector3(21.4f, -0.25f, 6f), new Vector3(3.0f, 0.5f, 12f), floor);
+        Box("01-02 connector west wall", new Vector3(20.0f, 1.5f, 6f), new Vector3(0.2f, 3f, 9.6f), wall);
+        Box("01-02 connector east wall", new Vector3(22.9f, 1.5f, 6f), new Vector3(0.2f, 3f, 9.6f), wall);
+    }
+
+    private static void BuildSouthTurnConnector()
+    {
+        // The toxic bridge ends north of 06; the route turns south, then enters 06 from its west door.
+        Box("05-06 connector north-south floor", new Vector3(65.5f, -0.25f, 6f), new Vector3(3.0f, 0.5f, 12f), floor);
+        Box("05-06 connector west wall", new Vector3(64.0f, 1.5f, 6f), new Vector3(0.2f, 3f, 9.6f), wall);
+        Box("05-06 connector east wall", new Vector3(67.0f, 1.5f, 6f), new Vector3(0.2f, 3f, 9.6f), wall);
+        Box("05-06 connector south entry floor", new Vector3(66.5f, -0.25f, 0f), new Vector3(4.0f, 0.5f, 2.4f), floor);
+        Box("05-06 connector south wall", new Vector3(66.5f, 1.5f, -1.2f), new Vector3(4.0f, 3f, 0.2f), wall);
+        Box("05-06 connector north wall", new Vector3(66.5f, 1.5f, 1.2f), new Vector3(4.0f, 3f, 0.2f), wall);
+    }
     private static void CreateLighting()
     {
         GameObject sun = new GameObject("Graybox key light");
@@ -457,20 +582,7 @@ public static class POCLevelBuilder
 
     private static void Label(string text, Vector3 position, Material colorMaterial, float characterSize)
     {
-        GameObject go = new GameObject("Label - " + text);
-        go.transform.SetParent(root, false);
-        go.transform.position = position;
-        go.transform.rotation = Quaternion.LookRotation(overviewCamera.transform.position - position, Vector3.up);
-        TextMesh mesh = go.AddComponent<TextMesh>();
-        mesh.text = text;
-        mesh.font = labelFont;
-        mesh.fontSize = 64;
-        mesh.characterSize = characterSize;
-        mesh.anchor = TextAnchor.MiddleCenter;
-        mesh.alignment = TextAlignment.Center;
-        mesh.color = colorMaterial != null ? colorMaterial.color : Color.white;
-        mesh.richText = false;
-        mesh.GetComponent<MeshRenderer>().sortingOrder = 10;
+        // Intentionally empty: the graybox scene contains no in-world text labels.
     }
 
     private static Material MakeMaterial(string name, Color color)
@@ -492,14 +604,6 @@ public static class POCLevelBuilder
             material.SetColor("_BaseColor", color);
         AssetDatabase.CreateAsset(material, path);
         return material;
-    }
-
-    private static Font LoadLabelFont()
-    {
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (font == null)
-            font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        return font;
     }
 
     private static void EnsureFolder(string parent, string folder)
@@ -524,3 +628,6 @@ public static class POCLevelBuilder
     }
 
 }
+
+
+
